@@ -35,6 +35,7 @@ from odoo import _, SUPERUSER_ID
 from odoo import models, api, fields, tools
 from odoo.tools.mimetypes import guess_mimetype
 from odoo.exceptions import ValidationError
+from odoo.osv import expression
 
 from odoo.addons.muk_utils.tools import file
 from odoo.addons.muk_security.tools.security import NoSecurityUid
@@ -112,16 +113,18 @@ class File(models.Model):
         string="Color",
         default=0)
      
+    category = fields.Many2one(
+        comodel_name='muk_dms.category',
+        context="{'dms_category_show_path': True}", 
+        string="Category")
+    
     tags = fields.Many2many(
         comodel_name='muk_dms.tag',
         relation='muk_dms_file_tag_rel', 
+        domain="[['category', 'child_of', category]]",
         column1='fid',
         column2='tid',
         string='Tags')
-     
-    category = fields.Many2one(
-        comodel_name='muk_dms.category', 
-        string="Category")
     
     content = fields.Binary(
         compute='_compute_content',
@@ -226,6 +229,64 @@ class File(models.Model):
         self.env.user.company_id.set_onboarding_step_done(
             'documents_onboarding_file_state'
         )
+    
+    #----------------------------------------------------------
+    # SearchPanel
+    #----------------------------------------------------------  
+    
+    @api.model
+    def _search_panel_directory(self, **kwargs):
+        search_domain = kwargs.get('search_domain', []),
+        category_domain = kwargs.get('category_domain', [])
+        if category_domain and len(category_domain):
+            return '=', category_domain[0][2]
+        if search_domain and len(search_domain):
+            for domain in search_domain[0]:
+                if domain[0] == 'directory':
+                    return domain[1], domain[2]
+        return None, None
+    
+    @api.model
+    def _search_panel_domain(self, field, operator, directory_id, comodel_domain=[]):
+        files_ids = self.search([('directory', operator, directory_id)]).ids
+        return expression.AND([comodel_domain, [(field, 'in', files_ids)]])
+    
+    @api.model
+    def search_panel_select_range(self, field_name, **kwargs):
+        operator, directory_id = self._search_panel_directory(**kwargs)
+        if directory_id and field_name == 'directory':
+            comodel_model = self.env['muk_dms.directory']
+            comodel_domain = kwargs.pop('comodel_domain', [])
+            fields = ['display_name', comodel_model._parent_name]
+            directory_comodel_domain = self._search_panel_domain(
+                'files', operator, directory_id, comodel_domain
+            )
+            values = comodel_model.search_read(
+                directory_comodel_domain, fields
+            )
+            field = comodel_model._parent_name
+            ids = {value['id'] for value in values} 
+            for value in values:
+                if value[field] and value[field][0] not in ids:
+                    value[field] = None
+            return {
+                'parent_field': field,
+                'values': values if len(values) > 1 else [],
+            }
+        return super(File, self).search_panel_select_range(field_name, **kwargs)
+    
+    @api.model
+    def search_panel_select_multi_range(self, field_name, **kwargs):
+        operator, directory_id = self._search_panel_directory(**kwargs)
+        if directory_id and field_name in ['directory', 'tags', 'category']:
+            comodel_domain = kwargs.pop('comodel_domain', [])
+            directory_comodel_domain = self._search_panel_domain(
+                'files', operator, directory_id, comodel_domain
+            )
+            return super(File, self).search_panel_select_multi_range(
+                field_name, comodel_domain=directory_comodel_domain, **kwargs
+            )
+        return super(File, self).search_panel_select_multi_range(field_name, **kwargs)
     
     #----------------------------------------------------------
     # Read, View 
@@ -454,6 +515,7 @@ class File(models.Model):
         default.update({
             'name': file.unique_name(self.name, names, self.extension)
         })
+        self.check_directory_access('create', default, True)
         return super(File, self).copy(default)
     
     @api.multi

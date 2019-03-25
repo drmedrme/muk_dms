@@ -51,6 +51,8 @@
 			<field name="tags"/>
 			<field name="name" />
 			<field name="color"/>
+			<field name="active"/>
+            <field name="mimetype"/>
             <field name="create_uid"/>
             <field name="write_date"/>
 			<field name="locked_by" />
@@ -58,6 +60,7 @@
 			<field name="is_lock_editor" />
 			<field name="permission_write" />
 			<field name="permission_unlink" />
+			<field name="__last_update" />
 			<templates>
 				<t t-name="kanban-box">
 					<div t-attf-class="#{kanban_color(record.color.raw_value)} oe_kanban_global_click">
@@ -66,25 +69,43 @@
 						        <span class="fa fa-ellipsis-v"/>
 						    </a>
 						    <div class="dropdown-menu" role="menu">
-						        <a role="menuitem" type="open" class="dropdown-item">
-									<i class="fa fa-external-link" /> Open
-								</a>
-						        <a t-if="record.permission_write.raw_value and !record.is_locked.raw_value" role="menuitem" name="lock" type="object" class="dropdown-item">
-									<i class="fa fa-lock" /> Lock
-								</a>
-						        <a t-if="record.is_locked.raw_value  and record.is_lock_editor.raw_value" role="menuitem" name="lock" type="object" class="dropdown-item">
-									<i class="fa fa-unlock-alt" /> Unlock
-								</a>
-						        <a t-if="record.permission_write.raw_value" role="menuitem" type="edit" class="dropdown-item">
-									<i class="fa fa-pencil-square-o" /> Edit
-								</a>
-						        <a t-if="record.permission_unlink.raw_value" role="menuitem" type="delete" class="dropdown-item">
-									<i class="fa fa-trash-o" /> Delete
-								</a>
-								<a role="menuitem" class="dropdown-item" t-attf-href="/web/content?id=#{record.id.raw_value}&amp;field=content&amp;model=muk_dms.file&amp;filename_field=name&amp;download=true">
-                                	<i class="fa fa-download" /> Download
-                                </a>
-						        <ul class="oe_kanban_colorpicker" data-field="color"/>
+						    	<div class="row">
+							    	<div class="col-6 mk_file_kanban_operations">
+										<h6 class="dropdown-header">Operations</h6>
+								        <a t-if="record.permission_write.raw_value and !record.is_locked.raw_value" role="menuitem" name="lock" type="object" class="dropdown-item">
+											<i class="fa fa-lock" /> Lock
+										</a>
+								        <a t-if="record.is_locked.raw_value  and record.is_lock_editor.raw_value" role="menuitem" name="lock" type="object" class="dropdown-item">
+											<i class="fa fa-unlock-alt" /> Unlock
+										</a>
+								        <a t-if="record.permission_write.raw_value and record.active.raw_value" role="menuitem" name="toggle_active" type="object" class="dropdown-item">
+											<i class="fa fa-archive" /> Archive
+										</a>
+								        <a t-if="record.permission_write.raw_value and !record.active.raw_value" role="menuitem" name="toggle_active" type="object" class="dropdown-item">
+											<i class="fa fa-archive" /> Unarchive
+										</a>
+										<a role="menuitem" class="dropdown-item" t-attf-href="/web/content?id=#{record.id.raw_value}&amp;field=content&amp;model=muk_dms.file&amp;filename_field=name&amp;download=true">
+		                                	<i class="fa fa-download" /> Download
+		                                </a>
+									</div>
+									<div class="col-6 border-left mk_file_kanban_actions">
+										<h6 class="dropdown-header">Actions</h6>
+								        <a role="menuitem" type="open" class="dropdown-item">
+											<i class="fa fa-external-link" /> Open
+										</a>
+								        <a t-if="record.permission_write.raw_value" role="menuitem" type="edit" class="dropdown-item">
+											<i class="fa fa-pencil-square-o" /> Edit
+										</a>
+								        <a t-if="record.permission_unlink.raw_value" role="menuitem" type="delete" class="dropdown-item">
+											<i class="fa fa-trash-o" /> Delete
+										</a>
+									</div>
+								</div>
+								<div t-if="record.permission_write.raw_value" class="row">
+									<div role="menuitem" class="col-12">
+										<ul class="oe_kanban_colorpicker" data-field="color"/>
+									</div>
+								</div>
 						    </div>
 						</div>
 						<div class="oe_kanban_content">
@@ -120,6 +141,11 @@
 					</div>
 				</t>
 			</templates>
+            <searchpanel>
+                <field name="directory" icon="fa-folder"/>
+                <field name="directory" string="Starred"  domain="[['starred', '=', True]]" select="multi" icon="fa-star"/>
+                <field name="tags" select="multi" icon="fa-tag" groupby="category" />
+            </searchpanel>
 		</kanban>
 	</field>
 </record>
@@ -210,10 +236,10 @@
 						<field name="storage" options="{'no_open': True}"/>
 					</group>
 					<group>
-						<field name="tags" widget="many2many_tags" placeholder="Tags..."
- 							options="{'color_field': 'color', 'no_create_edit': True}" />
  						<field name="category" placeholder="Internal / Human Resource"
  							options="{'no_open': True, 'no_create': True}" />
+						<field name="tags" widget="many2many_tags" placeholder="Tags..."
+ 							options="{'color_field': 'color', 'no_create_edit': True}" />
 					</group>
 				</group>
 				<notebook>

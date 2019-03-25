@@ -44,6 +44,18 @@ class ResConfigSettings(models.TransientModel):
         help="Activates a file trash to restore deleted files.")
     
     #----------------------------------------------------------
+    # Views
+    #----------------------------------------------------------
+    
+    module_muk_dms_preview = fields.Boolean(
+        string="File Preview",
+        help="Activates the preview function on files.")
+    
+    module_muk_dms_view = fields.Boolean(
+        string="Tree View",
+        help="Activates the documents tree view.")
+    
+    #----------------------------------------------------------
     # Storage Addons
     #----------------------------------------------------------
     
@@ -54,6 +66,22 @@ class ResConfigSettings(models.TransientModel):
     module_muk_dms_file = fields.Boolean(
         string="Filestore Storage",
         help="Enables a new save option to store files into a filestore.")
+    
+    #----------------------------------------------------------
+    # Attachment Addons
+    #----------------------------------------------------------
+    
+    module_muk_dms_attachment = fields.Boolean(
+        string="Documents Storage Location",
+        help="Allows attachments to be stored inside of Documents.")
+
+    module_muk_dms_attachment_rules = fields.Boolean(
+        string="Documents Storage Rules",
+        help="Allows attachments to be automatically placed in the right directory.")
+    
+    module_muk_dms_attachment_automation = fields.Boolean(
+        string="Attachment Rule Automation",
+        help="Allows you to create rule templates to create attachment rules.")
     
     #----------------------------------------------------------
     # ... Addons
@@ -78,18 +106,6 @@ class ResConfigSettings(models.TransientModel):
     module_muk_dms_export = fields.Boolean(
         string="Export Files",
         help="Allows the conversion of existing files.")
-    
-    module_muk_dms_attachment = fields.Boolean(
-        string="Attachment Storage Location",
-        help="Allows attachments to be stored inside of MuK Documents.")
-
-    module_muk_dms_attachment_rules = fields.Boolean(
-        string="Attachment Storage Rules",
-        help="Allows attachments to be automatically placed in the right directory.")
-    
-    module_muk_dms_attachment_automation = fields.Boolean(
-        string="Attachment Rule Automation",
-        help="Allows you to create rule templates to create attachment rules.")
     
     module_muk_dms_attachment_wizard = fields.Boolean(
         string="Attachment Wizard",
@@ -119,7 +135,7 @@ class ResConfigSettings(models.TransientModel):
     def set_values(self):
         res = super(ResConfigSettings, self).set_values()
         param = self.env['ir.config_parameter'].sudo()
-        param.set_param('muk_dms.max_upload_size', self.documents_binary_max_size)
+        param.set_param('muk_web_utils.binary_max_size', self.documents_binary_max_size)
         param.set_param('muk_dms.forbidden_extensions', self.documents_forbidden_extensions)
         return res
 
