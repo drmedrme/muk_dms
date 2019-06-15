@@ -120,8 +120,11 @@ class File(models.Model):
     
     tags = fields.Many2many(
         comodel_name='muk_dms.tag',
-        relation='muk_dms_file_tag_rel', 
-        domain="[['category', 'child_of', category]]",
+        relation='muk_dms_file_tag_rel',         
+        domain="""[
+            '|', ['category', '=', False],
+            ['category', 'child_of', category]]
+        """,
         column1='fid',
         column2='tid',
         string='Tags')
@@ -188,7 +191,7 @@ class File(models.Model):
         return {'content_binary': False}
     
     @api.model
-    def _update_content_vals(self, vals, binary):
+    def _update_content_vals(self, file, vals, binary):
         vals.update({
             'checksum': self._get_checksum(binary),
             'size': binary and len(binary) or 0,
@@ -208,8 +211,7 @@ class File(models.Model):
 
     @api.multi
     def _get_thumbnail_placeholder_name(self):
-        self.ensure_one()
-        return self.extension and "file_%s.png" % self.extension or ""
+        return self.extension and "file_%s.svg" % self.extension or ""
     
     #----------------------------------------------------------
     # Actions
@@ -255,30 +257,40 @@ class File(models.Model):
     def search_panel_select_range(self, field_name, **kwargs):
         operator, directory_id = self._search_panel_directory(**kwargs)
         if directory_id and field_name == 'directory':
-            comodel_model = self.env['muk_dms.directory']
-            comodel_domain = kwargs.pop('comodel_domain', [])
-            fields = ['display_name', comodel_model._parent_name]
-            directory_comodel_domain = self._search_panel_domain(
-                'files', operator, directory_id, comodel_domain
+            domain = [('parent_directory', operator, directory_id)]
+            values = self.env['muk_dms.directory'].search_read(
+                domain, ['display_name', 'parent_directory']
             )
-            values = comodel_model.search_read(
-                directory_comodel_domain, fields
-            )
-            field = comodel_model._parent_name
-            ids = {value['id'] for value in values} 
-            for value in values:
-                if value[field] and value[field][0] not in ids:
-                    value[field] = None
             return {
-                'parent_field': field,
+                'parent_field': 'parent_directory',
                 'values': values if len(values) > 1 else [],
             }
         return super(File, self).search_panel_select_range(field_name, **kwargs)
-    
+     
     @api.model
     def search_panel_select_multi_range(self, field_name, **kwargs):
         operator, directory_id = self._search_panel_directory(**kwargs)
-        if directory_id and field_name in ['directory', 'tags', 'category']:
+        if field_name == 'tags':
+            sql_query = '''
+                SELECT t.name AS name, t.id AS id, c.name AS group_name,
+                    c.id AS group_id, COUNT(r.fid) AS count
+                FROM muk_dms_tag t
+                JOIN muk_dms_category c ON t.category = c.id
+                LEFT JOIN muk_dms_file_tag_rel r ON t.id = r.tid 
+                {directory_where_clause}
+                GROUP BY c.name, c.id, t.name, t.id
+                ORDER BY c.name, c.id, t.name, t.id;
+            '''
+            where_clause = ''
+            if directory_id:
+                directory_where_clause = 'WHERE r.fid = ANY (VALUES {ids})'
+                file_ids = self.search([('directory', operator, directory_id)]).ids
+                where_clause = '' if not file_ids else directory_where_clause.format(
+                    ids=', '.join(map(lambda id: '(%s)' % id, file_ids))
+                )
+            self.env.cr.execute(sql_query.format(directory_where_clause=where_clause), [])
+            return self.env.cr.dictfetchall()
+        if directory_id and field_name in ['directory', 'category']:
             comodel_domain = kwargs.pop('comodel_domain', [])
             directory_comodel_domain = self._search_panel_domain(
                 'files', operator, directory_id, comodel_domain
@@ -289,7 +301,7 @@ class File(models.Model):
         return super(File, self).search_panel_select_multi_range(field_name, **kwargs)
     
     #----------------------------------------------------------
-    # Read, View 
+    # Read 
     #----------------------------------------------------------     
     
     @api.depends('name', 'directory', 'directory.parent_path')
@@ -297,9 +309,9 @@ class File(models.Model):
         records_with_directory = self - self.filtered(lambda rec: not rec.directory)
         if records_with_directory:
             paths = [list(map(int, rec.directory.parent_path.split('/')[:-1])) for rec in records_with_directory]
-            ids = set(functools.reduce(operator.concat, paths))
             model = self.env['muk_dms.directory'].with_context(dms_directory_show_path=False)
-            data = dict(model.browse(ids)._filter_access('read').name_get())
+            directories = model.browse(set(functools.reduce(operator.concat, paths)))
+            data = dict(directories._filter_access('read').name_get())
             for record in self:
                 path_names = []
                 path_json = []
@@ -371,6 +383,18 @@ class File(models.Model):
         return super(File, self).read(fields, load=load)
     
     #----------------------------------------------------------
+    # View
+    #----------------------------------------------------------
+    
+    @api.onchange('category')
+    def _change_category(self):
+        tags = self.tags.filtered(
+            lambda rec: not rec.category or \
+            rec.category == self.category
+        )
+        self.tags = tags
+        
+    #----------------------------------------------------------
     # Security
     #----------------------------------------------------------
     
@@ -380,11 +404,10 @@ class File(models.Model):
             return self.env['muk_dms.directory']
         sql_query = '''
             SELECT directory 
-            FROM {table} 
+            FROM muk_dms_file
             WHERE id = ANY (VALUES {ids});
         '''.format(
-            table=self._table,
-            ids=', '.join(map(lambda id: '(%s)' % id, file_ids)),
+            ids=', '.join(map(lambda id: '(%s)' % id, file_ids))
         )
         self.env.cr.execute(sql_query, [])
         result = set(val[0] for val in self.env.cr.fetchall())
@@ -414,9 +437,9 @@ class File(models.Model):
         if not result:
             return 0 if count else []
         file_ids = set(result)
-        for directory in self._get_directories_from_database(result):
-            if not directory.check_access('read', raise_exception=False):
-                file_ids -= set(directory.sudo().mapped('files').ids)
+        directories = self._get_directories_from_database(result)
+        for directory in directories - directories._filter_access('read'):
+            file_ids -= set(directory.sudo().mapped('files').ids)
         return len(file_ids) if count else list(file_ids)
     
     @api.multi
@@ -424,9 +447,9 @@ class File(models.Model):
         records = super(File, self)._filter_access(operation)
         if self.env.user.id == SUPERUSER_ID or isinstance(self.env.uid, NoSecurityUid):
             return records
-        for directory in self._get_directories_from_database(records.ids):
-            if not directory.check_access(operation, raise_exception=False):
-                records -= self.browse(directory.sudo().mapped('files').ids)
+        directories = self._get_directories_from_database(records.ids)
+        for directory in directories - directories._filter_access('read'):
+            records -= self.browse(directory.sudo().mapped('files').ids)
         return records
 
     @api.multi
@@ -488,9 +511,9 @@ class File(models.Model):
     def _inverse_content(self):
         updates = defaultdict(set)
         for record in self:
-            binary = base64.b64decode(record.content or "")
             values = self._get_content_inital_vals()
-            values = self._update_content_vals(values, binary)
+            binary = base64.b64decode(record.content or "")
+            values = self._update_content_vals(record, values, binary)
             values.update({
                 'content_binary': record.content,
             })

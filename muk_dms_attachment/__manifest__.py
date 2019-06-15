@@ -22,7 +22,7 @@
 {
     "name": "MuK Documents Attachment",
     "summary": """Documents as Attachment Storage""",
-    "version": '12.0.2.0.11',   
+    "version": '12.0.2.1.2',   
     "category": 'Document Management',   
     "license": "AGPL-3",
     "website": "http://www.mukit.at",
@@ -33,15 +33,17 @@
         "Kerrim Abdelhamed <kerrim.adbelhamed@mukit.at>",
     ],
     'depends': [
-        'muk_dms',
+        "muk_dms_actions",
     ],
     "data": [
         "views/menu.xml",
         "views/file.xml",
         "views/ir_attachment.xml",
         "views/res_config_settings.xml",
+        "views/action.xml",
     ],
     "demo": [
+        "demo/action.xml",
     ],
     "qweb": [
         "static/src/xml/*.xml",
@@ -55,6 +57,5 @@
     },
     "application": False,
     "installable": True,
-    "post_init_hook": "_install_force_storage",
     "uninstall_hook": "_uninstall_force_storage",
 }

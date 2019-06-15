@@ -52,6 +52,8 @@ class Directory(models.Model):
     
     _parent_path_sudo = False
     _parent_path_store = False
+    
+    _name_path_context = "dms_directory_show_path"
 
     #----------------------------------------------------------
     # Database
@@ -125,7 +127,10 @@ class Directory(models.Model):
     tags = fields.Many2many(
         comodel_name='muk_dms.tag',
         relation='muk_dms_directory_tag_rel', 
-        domain="[['category', 'child_of', category]]",
+        domain="""[
+            '|', ['category', '=', False],
+            ['category', 'child_of', category]]
+        """,
         column1='did',
         column2='tid',
         string='Tags')
@@ -219,14 +224,36 @@ class Directory(models.Model):
     @api.model
     def search_panel_select_multi_range(self, field_name, **kwargs):
         operator, directory_id = self._search_panel_directory(**kwargs)
-        if directory_id and field_name in ['tags', 'category']:
+        if field_name == 'tags':
+            sql_query = '''
+                SELECT t.name AS name, t.id AS id, c.name AS group_name,
+                    c.id AS group_id, COUNT(r.did) AS count
+                FROM muk_dms_tag t
+                JOIN muk_dms_category c ON t.category = c.id
+                LEFT JOIN muk_dms_directory_tag_rel r ON t.id = r.tid 
+                {directory_where_clause}
+                GROUP BY c.name, c.id, t.name, t.id
+                ORDER BY c.name, c.id, t.name, t.id;
+            '''
+            where_clause = ''
+            if directory_id:
+                directory_ids = [directory_id]
+                if operator == 'child_of':
+                    directory_ids = self.search([('id', operator, directory_id)]).ids
+                directory_where_clause = 'WHERE r.did = ANY (VALUES {ids})'
+                where_clause = '' if not file_ids else directory_where_clause.format(
+                    ids=', '.join(map(lambda id: '(%s)' % id, directory_ids))
+                )
+            self.env.cr.execute(sql_query.format(directory_where_clause=where_clause), [])
+            return self.env.cr.dictfetchall()
+        if directory_id and field_name == 'category':
             comodel_domain = kwargs.pop('comodel_domain', [])
             domain = [('directories', operator, directory_id)]
             comodel_domain = expression.AND([comodel_domain, domain])
             return super(Directory, self).search_panel_select_multi_range(
                 field_name, comodel_domain=comodel_domain, **kwargs
             )
-        if directory_id and field_name in ['parent_directory']:
+        if directory_id and field_name == 'parent_directory':
             comodel_domain = kwargs.pop('comodel_domain', [])
             domain = [('parent_directory', operator, directory_id)]
             comodel_domain = expression.AND([comodel_domain, domain])
@@ -312,33 +339,7 @@ class Directory(models.Model):
                 fields=['size'],
             )
             record.size = sum(rec.get('size', 0) for rec in recs)
-    
-    @api.model
-    def _name_search(self, name='', args=None, operator='ilike', limit=100, name_get_uid=None):
-        domain = list(args or [])
-        if not (name == '' and operator == 'ilike') :
-            if '/' in name:
-                domain += [('parent_path_names', operator, name)]  
-            else:
-                domain += [(self._rec_name, operator, name)]
-        records = self.browse(self._search(domain, limit=limit, access_rights_uid=name_get_uid))
-        return models.lazy_name_get(records.sudo(name_get_uid or self.env.uid)) 
-            
-    @api.multi
-    def name_get(self):
-        if self.env.context.get('dms_directory_show_path'):
-            res = []
-            for record in self:
-                names = record.parent_path_names
-                if not names:
-                    res.append(super(Directory, record).name_get()[0])
-                elif not len(names) > 50:
-                    res.append((record.id, names))
-                else:
-                    res.append((record.id, ".." + names[-48:]))
-            return res
-        return super(Directory, self).name_get()
-        
+
     #----------------------------------------------------------
     # View
     #----------------------------------------------------------
@@ -349,6 +350,14 @@ class Directory(models.Model):
             self.parent_directory = None
         else:
             self.root_storage = None
+    
+    @api.onchange('category')
+    def _change_category(self):
+        tags = self.tags.filtered(
+            lambda rec: not rec.category or \
+            rec.category == self.category
+        )
+        self.tags = tags
     
     #----------------------------------------------------------
     # Constrains

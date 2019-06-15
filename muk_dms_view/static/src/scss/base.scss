@@ -17,9 +17,11 @@
 *
 **********************************************************************************/
 
-.mk_searchview_info {
-	cursor: default;
-	position: absolute;
-	top: 6px;
-	right: 7px;
+.mk_searchview {
+	.mk_searchview_info {
+		cursor: default;
+		position: absolute;
+		top: 6px;
+		right: 7px;
+	}
 }

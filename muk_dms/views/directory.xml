@@ -153,7 +153,8 @@
 	<field name="name">muk_dms_directory.kanban</field>
 	<field name="model">muk_dms.directory</field>
 	<field name="arch" type="xml">
-		<kanban class="mk_directory_kanban_view" banner_route="/dms/document_onboarding/directory">
+		<kanban class="mk_directory_kanban_view o_kanban_small_column align-content-start" 
+				banner_route="/dms/document_onboarding/directory">
 			<field name="id"/>
 			<field name="tags"/>
 			<field name="name"/>
@@ -352,6 +353,7 @@
 							attrs="{'readonly':[('permission_create','=',False)]}">
 							<tree string="Files" limit="10">
 								<field name="name" />
+								<field name="mimetype" />
 								<field name="size" widget="binary_size"/>
 								<field name="write_date" readonly="1" />
 							</tree>

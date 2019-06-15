@@ -21,6 +21,7 @@
 	height: 100%;
 	.o_kanban_record {
 		padding: 0;
+		max-height: $o-kanban-image-width + 1;
 		.o_kanban_image {
 			width: $o-kanban-image-width + 1;
 			border-right: solid 1px $gray-400;
@@ -29,17 +30,22 @@
 			padding: 4px 4px 4px 0;
 			.o_kanban_record_title {
 				font-weight: bold;
+				padding-right: 16px;
 			}
 			.o_kanban_record_body {
-				max-height: 15px;
+				max-height: 12px;
 				.o_kanban_tags {
 					@include o-text-overflow;
 				}
 			}
+			.oe_kanban_avatar {
+			    margin-left: 0px;
+			}
 			.mk_file_kanban_lock {
-				margin-top: 1px;
+				margin-top: 2px;
 			    font-size: 1.2rem;
 			    line-height: 20px;
+			    margin-right: 6px;
 			}
 		}
 		.o_dropdown_kanban {

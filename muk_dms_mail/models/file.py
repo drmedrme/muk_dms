@@ -17,6 +17,7 @@
 #
 ###################################################################################
 
+import base64
 import logging
 
 from odoo import models, api, fields
@@ -32,6 +33,10 @@ class File(models.Model):
         'mail.activity.mixin',
         'muk_dms.file',
     ]
+    
+    #----------------------------------------------------------
+    # Create / Update / Delete
+    #----------------------------------------------------------
     
     @api.model_create_multi
     def create(self, vals_list):

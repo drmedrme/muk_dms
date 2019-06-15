@@ -28,6 +28,8 @@
 			<filter string="All Files" name="all" domain="['|',('active', '=',  False), ('active', '!=',  False)]"/>
 			<filter string="My Files" name="filter_user" domain="[('create_uid', '=', uid)]"/>
 			<separator/>
+			<filter string="Archived Files" name="filter_active" domain="[('active', '=', False)]"/>
+			<separator/>
 			<filter string="Creation Date" name="filter_create" date="create_date"/>
 			<filter string="Modification Date" name="filter_write" date="write_date"/>
 			<group expand="0" string="Group By">
@@ -45,7 +47,7 @@
 	<field name="name">muk_dms_file.kanban</field>
 	<field name="model">muk_dms.file</field>
 	<field name="arch" type="xml">
-		<kanban class="mk_file_kanban_view o_kanban_small_column o_emphasize_colors" 
+		<kanban class="mk_file_kanban_view o_kanban_small_column align-content-start" 
 				banner_route="/dms/document_onboarding/file" js_class="file_kanban">
 			<field name="id" />
 			<field name="tags"/>
@@ -127,7 +129,7 @@
 											<field name="write_date" widget="date"/>
 								     	</div>
 										<div class="oe_kanban_bottom_right">
-											<span class="mk_file_kanban_lock">
+											<span t-if="record.is_locked.raw_value" class="mk_file_kanban_lock">
 												<i t-attf-class="fa #{(record.is_locked.raw_value and !record.is_lock_editor.raw_value) ? 'fa-lock' : ''} #{((record.is_locked.raw_value and record.is_lock_editor.raw_value)) ? 'fa-unlock-alt' : ''}" 
 													t-att-title="record.locked_by.value"/>
 											</span>
@@ -154,7 +156,8 @@
 	<field name="name">muk_dms_file.tree</field>
 	<field name="model">muk_dms.file</field>
 	<field name="arch" type="xml">
-		<tree string="Files" decoration-warning="not active" decoration-muted="(is_locked and not is_lock_editor)">
+		<tree string="Files" js_class="file_list" decoration-warning="not active"
+				decoration-muted="(is_locked and not is_lock_editor)" >
 			<field name="active" invisible="1"/>
 			<field name="is_locked" invisible="1"/>
 			<field name="is_lock_editor" invisible="1"/>
@@ -268,8 +271,8 @@
 							</group>
 						</group>
 					</page>
-					<page name="page_technical" string="Technical Information" invisible="1" groups="muk_dms.group_dms_manager">
-						<group>
+					<page name="page_technical" string="Technical Information" invisible="1" groups="muk_dms.group_dms_manager,base.group_no_one">
+						<group name="technical">
 							<group name="technical_left">
 							</group>
 							<group name="technical_right">
