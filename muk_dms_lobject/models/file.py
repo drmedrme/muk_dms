@@ -1,19 +1,22 @@
 ###################################################################################
-# 
-#    Copyright (C) 2018 MuK IT GmbH
+#
+#    Copyright (c) 2017-2019 MuK IT GmbH.
+#
+#    This file is part of MuK Documents Large Object 
+#    (see https://mukit.at).
 #
 #    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
+#    it under the terms of the GNU Lesser General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
 #
 #    This program is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
+#    GNU Lesser General Public License for more details.
 #
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#    You should have received a copy of the GNU Lesser General Public License
+#    along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 ###################################################################################
 
@@ -60,7 +63,7 @@ class File(models.Model):
         bin_size = self._check_context_bin_size('content')
         bin_recs = self.with_context({'bin_size': True})
         records = bin_recs.filtered(lambda rec: bool(rec.content_lobject))
-        for record in records.with_context(self.env.context):
+        for record in self & records:
             context = {'human_size': True} if bin_size else {'base64': True}
             record.content = record.with_context(context).content_lobject
         super(File, self - records)._compute_content()
@@ -88,7 +91,7 @@ class File(models.Model):
             binary = base64.b64decode(record.content or "")
             values = self._update_content_vals(record, values, binary)
             values.update({
-                'content_lobject': record.content,
+                'content_lobject': record.content and binary,
             })
             updates[tools.frozendict(values)].add(record.id)
         with self.env.norecompute():

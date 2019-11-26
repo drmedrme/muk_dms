@@ -1,19 +1,22 @@
 ###################################################################################
-# 
-#    Copyright (C) 2017 MuK IT GmbH
+#
+#    Copyright (c) 2017-2019 MuK IT GmbH.
+#
+#    This file is part of MuK Documents 
+#    (see https://mukit.at).
 #
 #    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
+#    it under the terms of the GNU Lesser General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
 #
 #    This program is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
+#    GNU Lesser General Public License for more details.
 #
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#    You should have received a copy of the GNU Lesser General Public License
+#    along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 ###################################################################################
 
@@ -35,6 +38,7 @@ from odoo import _, SUPERUSER_ID
 from odoo import models, api, fields, tools
 from odoo.tools.mimetypes import guess_mimetype
 from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError
 from odoo.osv import expression
 
 from odoo.addons.muk_utils.tools import file
@@ -95,7 +99,8 @@ class File(models.Model):
         related="storage.company",
         comodel_name='res.company',
         string='Company',
-        readonly=True)
+        readonly=True,
+        store=True)
     
     path_names = fields.Char(
         compute='_compute_path',
@@ -121,10 +126,6 @@ class File(models.Model):
     tags = fields.Many2many(
         comodel_name='muk_dms.tag',
         relation='muk_dms_file_tag_rel',         
-        domain="""[
-            '|', ['category', '=', False],
-            ['category', 'child_of', category]]
-        """,
         column1='fid',
         column2='tid',
         string='Tags')
@@ -224,7 +225,9 @@ class File(models.Model):
             if logging:
                 info = (index + 1, record_count, file.migration)
                 _logger.info(_("Migrate File %s of %s [ %s ]") % info)
-            file.with_context(migration=True).write({'content': file.content})
+            file.with_context(migration=True).write({
+                'content': file.with_context({}).content
+            })
     
     @api.multi
     def action_save_onboarding_file_step(self):
@@ -388,11 +391,22 @@ class File(models.Model):
     
     @api.onchange('category')
     def _change_category(self):
+        res = {'domain': {
+            'tags': [('category', '=', False)]
+        }}
+        if self.category:
+            res.update({'domain': {
+                'tags': ['|', 
+                    ('category', '=', False),
+                    ('category', 'child_of', self.category.id)
+                ]
+            }})
         tags = self.tags.filtered(
             lambda rec: not rec.category or \
             rec.category == self.category
         )
         self.tags = tags
+        return res
         
     #----------------------------------------------------------
     # Security
